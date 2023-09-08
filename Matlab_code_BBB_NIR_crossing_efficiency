@@ -1,0 +1,64 @@
+clear all;clc
+
+%% import images
+
+[filename1, pathname1] = uigetfile('*.tif', 'Confocal Data:');
+data = tiffreadVolume([pathname1 filename1]);
+
+figure
+imshow(data(:,:,end), [])
+
+%% select treatment region
+
+roi_PDM = images.roi.Circle(gca,'Center',[300 100],'Radius',50);
+% adjust both position and size on the image, then run the next section
+
+
+%% select reference region
+
+roi_REF = images.roi.Circle(gca,'Color', 'green', 'Center',[300 200],'Radius',roi_PDM.Radius);
+% only adjust position on the image, then run the next section
+
+
+%% compute intensities (This section must run after confirm both ROIs)
+
+C_PDM = roi_PDM.Center;
+C_REF = roi_REF.Center;
+radius = roi_PDM.Radius;
+
+mask_PDM = createMask(roi_PDM);
+mask_REF = createMask(roi_REF);
+
+N = size(data, 3); % number of frames
+
+I = zeros(2, N); % two blank row vectors to store the computed values
+
+for k = 1:N
+    I(1,k) = sum(data(:,:,k).*mask_PDM, 'all');
+    I(2,k) = sum(data(:,:,k).*mask_REF, 'all');
+end
+
+I = I/sum(mask_PDM, 'all'); % normalise to area (number of pixels in roi)
+
+
+%% plot the result
+
+t_exp = 8; % exposure time per frame [sec]
+t_ini = 8; % start time for imaging after injection [sec]
+
+t = (0:t_exp:t_exp*(N-1)) + t_ini; % time stamps
+t = [0 t]; % add a true starting time
+
+I_cBBB = I(1,:)-I(2,:); % absolute BBB crossing (averaged per pixel)
+I_cBBB_r = I_cBBB./I(2,:); % relative BBB crossing (averaged per pixel)
+
+% plot the curve
+figure
+plot(t, [0 I_cBBB])
+xlabel('Time after injection (s)')
+ylabel('{\itI}_{cBBB} (a.u.)')
+
+figure
+plot(t, [0 I_cBBB_r])
+xlabel('Time after injection (s)')
+ylabel('{\itI}_{cBBB}/{\itI}_{ref} (a.u.)')
